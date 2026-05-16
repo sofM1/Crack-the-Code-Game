@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Super Decoder / Crack The Code - Hardware Switch & Boot Jingle Edition
+ * @brief Super Decoder / Crack The Code - Complete Arcade Audio Edition
  */
 
 #include <Arduino.h>
@@ -116,12 +116,19 @@ void playLoseJingle() {
   tone(BUZZER_PIN, 262, 800);             // C4
 }
 
-// NEW: Short Boot Jingle
 void playBootJingle() {
   tone(BUZZER_PIN, 440, 100); delay(120); // A4
   tone(BUZZER_PIN, 554, 100); delay(120); // C#5
   tone(BUZZER_PIN, 659, 100); delay(120); // E5
   tone(BUZZER_PIN, 880, 250); delay(250); // A5
+}
+
+// NEW: Short Reset Jingle
+void playResetJingle() {
+  // Fast descending "reboot/rewind" bloops
+  tone(BUZZER_PIN, 1047, 50); delay(60); // C6
+  tone(BUZZER_PIN, 784,  50); delay(60); // G5
+  tone(BUZZER_PIN, 523, 100); delay(120); // C5
 }
 
 // ============================================================
@@ -346,6 +353,13 @@ void handleAnimations() {
     for(int i = 0; i < 4; i++) leds[getLEDIndex(2, i + 2)] = GAME_COLORS[secretCode[i]];
     
     FastLED.show();
+    
+    if (isGameWon) {
+      tone(BUZZER_PIN, 1000 + (borderOffset * 40), 20); 
+    } else {
+      tone(BUZZER_PIN, 300 + (borderOffset * 5), 20); 
+    }
+
     borderOffset = (borderOffset + 1) % 22; 
 
     gameOverTitleX -= 5; 
@@ -425,7 +439,6 @@ void setup() {
   
   pinMode(BUZZER_PIN, OUTPUT);
 
-  // NEW: Play the boot jingle exactly once!
   playBootJingle();
 
   display.begin(0x3C, true);
@@ -448,7 +461,7 @@ void loop() {
   if (now - lastBattRead > 10000) { batteryVoltage = readBatteryVoltage(); batteryPct = batteryPercent(batteryVoltage); lastBattRead = now; }
 
   if (digitalRead(BUTTON_RESETGAME) == LOW) { 
-    beepNav(); delay(200); 
+    playResetJingle(); // NEW: Reset sound!
     appState = STATE_MENU; FastLED.clear(); FastLED.show(); drawMenu(); return; 
   }
 
