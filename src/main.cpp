@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Super Decoder / Crack The Code - Hardware Switch Edition
+ * @brief Super Decoder / Crack The Code - Hardware Switch & Boot Jingle Edition
  */
 
 #include <Arduino.h>
@@ -85,27 +85,6 @@ uint8_t  batteryPct = 100;
 uint32_t lastBattRead = 0;
 
 // ============================================================
-// CUSTOM BITMAP ARRAYS (24x24 Pixels)
-// ============================================================
-
-// --- CHEERING CHICK (GAMEPLAY) ---
-const unsigned char chick_cheer_1[] PROGMEM = {
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x00, 0x83, 0x80, 0x01, 
-	0x00, 0x20, 0x03, 0xcb, 0x90, 0x04, 0x34, 0x90, 0x08, 0x22, 0x08, 0x10, 0x7e, 0x0c, 0x10, 0x00, 
-	0x0e, 0x70, 0x00, 0x08, 0x50, 0x00, 0x08, 0x08, 0x00, 0x08, 0x08, 0x00, 0x18, 0x04, 0x00, 0x10, 
-	0x02, 0x00, 0x30, 0x03, 0x00, 0x48, 0x04, 0x81, 0x84, 0x00, 0x3c, 0x00, 0x00, 0x00, 0x00, 0x00, 
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-const unsigned char chick_cheer_2[] PROGMEM = {
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0xc7, 0x80, 0x41, 
-	0x00, 0x60, 0x23, 0xcb, 0xa2, 0x15, 0x7c, 0x94, 0x08, 0x24, 0x08, 0x10, 0x7e, 0x08, 0x10, 0xc0, 
-	0x08, 0x10, 0x00, 0x08, 0x10, 0x00, 0x08, 0x10, 0x00, 0x08, 0x08, 0x00, 0x10, 0x08, 0x00, 0x10, 
-	0x04, 0x00, 0x30, 0x02, 0x00, 0x58, 0x05, 0x80, 0x88, 0x08, 0x3e, 0x04, 0x00, 0x00, 0x00, 0x00, 
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-// ============================================================
 // AUDIO ENGINE
 // ============================================================
 
@@ -120,16 +99,29 @@ void playRowSubmit() {
 }
 
 void playWinJingle() {
-  tone(BUZZER_PIN, 523, 100); delay(100);
-  tone(BUZZER_PIN, 659, 100); delay(100);
-  tone(BUZZER_PIN, 784, 100); delay(100);
-  tone(BUZZER_PIN, 1047, 300); 
+  // Upbeat Retro Victory Fanfare
+  tone(BUZZER_PIN, 1319, 100); delay(120); // E6
+  tone(BUZZER_PIN, 1568, 100); delay(120); // G6
+  tone(BUZZER_PIN, 2637, 200); delay(220); // E7
+  tone(BUZZER_PIN, 2093, 100); delay(120); // C7
+  tone(BUZZER_PIN, 2349, 100); delay(120); // D7
+  tone(BUZZER_PIN, 3136, 400);             // G7
 }
 
 void playLoseJingle() {
-  tone(BUZZER_PIN, 300, 200); delay(200);
-  tone(BUZZER_PIN, 250, 200); delay(200);
-  tone(BUZZER_PIN, 200, 500); 
+  // Classic "Sad Trombone" descending scale
+  tone(BUZZER_PIN, 311, 300); delay(350); // Eb4
+  tone(BUZZER_PIN, 294, 300); delay(350); // D4
+  tone(BUZZER_PIN, 277, 300); delay(350); // Db4
+  tone(BUZZER_PIN, 262, 800);             // C4
+}
+
+// NEW: Short Boot Jingle
+void playBootJingle() {
+  tone(BUZZER_PIN, 440, 100); delay(120); // A4
+  tone(BUZZER_PIN, 554, 100); delay(120); // C#5
+  tone(BUZZER_PIN, 659, 100); delay(120); // E5
+  tone(BUZZER_PIN, 880, 250); delay(250); // A5
 }
 
 // ============================================================
@@ -237,12 +229,6 @@ void drawGameStatus() {
   if (currentRow > 0) {
     display.setCursor(0, 50); display.print(F("Last: W=")); display.print(feedbackExact[currentRow-1]);
     display.print(F(" O=")); display.print(feedbackColor[currentRow-1]);
-  }
-
-  if (blinkState) {
-    display.drawBitmap(104, 38, chick_cheer_1, 24, 24, SH110X_WHITE);
-  } else {
-    display.drawBitmap(104, 38, chick_cheer_2, 24, 24, SH110X_WHITE);
   }
 
   display.display();
@@ -439,12 +425,14 @@ void setup() {
   
   pinMode(BUZZER_PIN, OUTPUT);
 
+  // NEW: Play the boot jingle exactly once!
+  playBootJingle();
+
   display.begin(0x3C, true);
   display.setContrast(0); 
   display.setTextWrap(false);
   display.clearDisplay(); display.display();
   
-  // Pin 5 removed from array
   uint8_t p[] = {4,6,7,10,11,12};
   for(int i=0; i<6; i++) pinMode(p[i], INPUT_PULLUP);
   
