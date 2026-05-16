@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Super Decoder / Crack The Code - Complete Arcade Audio Edition
+ * @brief Super Decoder / Crack The Code - 5-Button Edition w/ Reset Confirmation
  */
 
 #include <Arduino.h>
@@ -23,7 +23,6 @@ Adafruit_SH1106G display = Adafruit_SH1106G(128, 64, &Wire, -1);
 #define BUTTON_NEXT        6   
 #define BUTTON_SUBMIT      7   
 #define BUTTON_COLOR       10  
-#define BUTTON_CHANGEMODE  11  
 #define BUTTON_RESETGAME   12  
 
 #define BATT_PIN           1   
@@ -53,9 +52,11 @@ uint8_t currentRow = 0;
 uint8_t currentCol = 0;
 uint8_t currentGuess[CODE_LENGTH];
 
-enum AppState { STATE_MENU, STATE_PLAYING, STATE_GAMEOVER, STATE_HELP };
+// NEW: Added STATE_CONFIRM_RESET to the state machine
+enum AppState { STATE_MENU, STATE_PLAYING, STATE_GAMEOVER, STATE_HELP, STATE_CONFIRM_RESET };
 AppState appState = STATE_MENU;
 uint8_t  menuSelection = 0;
+uint8_t  resetSelection = 1; // 0 = YES, 1 = NO
 uint8_t  gameMode = 1; 
 uint8_t  allowedGuesses = 5; 
 uint8_t  timerSelection = 0; 
@@ -99,36 +100,32 @@ void playRowSubmit() {
 }
 
 void playWinJingle() {
-  // Upbeat Retro Victory Fanfare
-  tone(BUZZER_PIN, 1319, 100); delay(120); // E6
-  tone(BUZZER_PIN, 1568, 100); delay(120); // G6
-  tone(BUZZER_PIN, 2637, 200); delay(220); // E7
-  tone(BUZZER_PIN, 2093, 100); delay(120); // C7
-  tone(BUZZER_PIN, 2349, 100); delay(120); // D7
-  tone(BUZZER_PIN, 3136, 400);             // G7
+  tone(BUZZER_PIN, 1319, 100); delay(120); 
+  tone(BUZZER_PIN, 1568, 100); delay(120); 
+  tone(BUZZER_PIN, 2637, 200); delay(220); 
+  tone(BUZZER_PIN, 2093, 100); delay(120); 
+  tone(BUZZER_PIN, 2349, 100); delay(120); 
+  tone(BUZZER_PIN, 3136, 400);             
 }
 
 void playLoseJingle() {
-  // Classic "Sad Trombone" descending scale
-  tone(BUZZER_PIN, 311, 300); delay(350); // Eb4
-  tone(BUZZER_PIN, 294, 300); delay(350); // D4
-  tone(BUZZER_PIN, 277, 300); delay(350); // Db4
-  tone(BUZZER_PIN, 262, 800);             // C4
+  tone(BUZZER_PIN, 311, 300); delay(350); 
+  tone(BUZZER_PIN, 294, 300); delay(350); 
+  tone(BUZZER_PIN, 277, 300); delay(350); 
+  tone(BUZZER_PIN, 262, 800);             
 }
 
 void playBootJingle() {
-  tone(BUZZER_PIN, 440, 100); delay(120); // A4
-  tone(BUZZER_PIN, 554, 100); delay(120); // C#5
-  tone(BUZZER_PIN, 659, 100); delay(120); // E5
-  tone(BUZZER_PIN, 880, 250); delay(250); // A5
+  tone(BUZZER_PIN, 440, 100); delay(120); 
+  tone(BUZZER_PIN, 554, 100); delay(120); 
+  tone(BUZZER_PIN, 659, 100); delay(120); 
+  tone(BUZZER_PIN, 880, 250); delay(250); 
 }
 
-// NEW: Short Reset Jingle
 void playResetJingle() {
-  // Fast descending "reboot/rewind" bloops
-  tone(BUZZER_PIN, 1047, 50); delay(60); // C6
-  tone(BUZZER_PIN, 784,  50); delay(60); // G5
-  tone(BUZZER_PIN, 523, 100); delay(120); // C5
+  tone(BUZZER_PIN, 1047, 50); delay(60);  
+  tone(BUZZER_PIN, 784,  50); delay(60);  
+  tone(BUZZER_PIN, 523, 100); delay(120); 
 }
 
 // ============================================================
@@ -243,7 +240,6 @@ void drawGameStatus() {
 
 void drawGameOver() {
   display.clearDisplay();
-  
   display.setTextSize(2);
   display.setTextColor(SH110X_WHITE);
   if (isGameWon) {
@@ -251,10 +247,28 @@ void drawGameOver() {
   } else {
     display.setCursor(gameOverTitleX, 16); display.print(F("GAME OVER"));
   }
-  
   display.setTextSize(1);
   display.setCursor(16, 44);
   if (blinkState) display.print(F("Press ANY BUTTON"));
+  display.display();
+}
+
+// NEW: The Confirmation Pop-Up Screen
+void drawConfirmReset() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.fillRect(0, 0, 128, 13, SH110X_WHITE);
+  display.setTextColor(SH110X_BLACK);
+  display.setCursor(34, 3); display.print(F("EXIT GAME?"));
+
+  display.setTextColor(SH110X_WHITE);
+  display.setCursor(10, 30);
+  if (resetSelection == 0) { display.print(blinkState ? F("> ") : F("  ")); display.print(F("YES (Lose Progress)")); }
+  else { display.print(F("  YES (Lose Progress)")); }
+
+  display.setCursor(10, 46);
+  if (resetSelection == 1) { display.print(blinkState ? F("> ") : F("  ")); display.print(F("NO (Return to Game)")); }
+  else { display.print(F("  NO (Return to Game)")); }
 
   display.display();
 }
@@ -315,6 +329,7 @@ void handleAnimations() {
     
     if (appState == STATE_MENU) drawMenu();
     if (appState == STATE_HELP) drawHelpScreen();
+    if (appState == STATE_CONFIRM_RESET) drawConfirmReset(); // Keep cursor blinking in confirm screen
     
     if (appState == STATE_PLAYING) {
       drawGameStatus(); 
@@ -446,8 +461,8 @@ void setup() {
   display.setTextWrap(false);
   display.clearDisplay(); display.display();
   
-  uint8_t p[] = {4,6,7,10,11,12};
-  for(int i=0; i<6; i++) pinMode(p[i], INPUT_PULLUP);
+  uint8_t p[] = {4,6,7,10,12};
+  for(int i=0; i<5; i++) pinMode(p[i], INPUT_PULLUP);
   
   FastLED.addLeds<WS2812B, WS2812B_DATA_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
   FastLED.setBrightness(20); 
@@ -460,9 +475,24 @@ void loop() {
   uint32_t now = millis();
   if (now - lastBattRead > 10000) { batteryVoltage = readBatteryVoltage(); batteryPct = batteryPercent(batteryVoltage); lastBattRead = now; }
 
+  // NEW: Updated Reset Button Logic
   if (digitalRead(BUTTON_RESETGAME) == LOW) { 
-    playResetJingle(); // NEW: Reset sound!
-    appState = STATE_MENU; FastLED.clear(); FastLED.show(); drawMenu(); return; 
+    delay(50); // Small debounce
+    if (digitalRead(BUTTON_RESETGAME) == LOW) {
+      if (appState == STATE_PLAYING) {
+        // If actively playing, bring up the confirmation screen
+        beepNav();
+        appState = STATE_CONFIRM_RESET;
+        resetSelection = 1; // Default safely to NO
+        drawConfirmReset();
+      } else if (appState != STATE_CONFIRM_RESET) {
+        // If on Menu, Game Over, or Help screen, just reboot instantly
+        playResetJingle(); 
+        appState = STATE_MENU; FastLED.clear(); FastLED.show(); drawMenu(); 
+      }
+      delay(200);
+    }
+    return; 
   }
 
   handleAnimations();
@@ -489,10 +519,34 @@ void loop() {
     }
   }
 
-  if (appState == STATE_HELP || appState == STATE_GAMEOVER) {
+  // NEW: Handling the Confirmation Screen Input
+  if (appState == STATE_CONFIRM_RESET) {
+    if (digitalRead(BUTTON_PREV) == LOW || digitalRead(BUTTON_NEXT) == LOW || digitalRead(BUTTON_COLOR) == LOW) {
+      beepNav();
+      resetSelection = (resetSelection == 0) ? 1 : 0; // Toggle Yes/No
+      drawConfirmReset();
+      delay(200);
+    }
+    if (digitalRead(BUTTON_SUBMIT) == LOW) {
+      if (resetSelection == 0) {
+        // User confirmed YES -> Destroy game and go to Menu
+        playResetJingle();
+        appState = STATE_MENU;
+        FastLED.clear(); FastLED.show();
+        drawMenu();
+      } else {
+        // User selected NO -> Resume game safely
+        beepNav();
+        appState = STATE_PLAYING;
+        lastTickTime = millis(); // Reset tick time so they don't lose a second instantly
+        drawGameStatus();
+      }
+      delay(200);
+    }
+  }
+  else if (appState == STATE_HELP || appState == STATE_GAMEOVER) {
     if (digitalRead(BUTTON_PREV) == LOW || digitalRead(BUTTON_NEXT) == LOW || 
-        digitalRead(BUTTON_SUBMIT) == LOW || digitalRead(BUTTON_COLOR) == LOW || 
-        digitalRead(BUTTON_CHANGEMODE) == LOW) {
+        digitalRead(BUTTON_SUBMIT) == LOW || digitalRead(BUTTON_COLOR) == LOW) {
       beepNav(); delay(200);
       FastLED.clear(); FastLED.show(); 
       appState = STATE_MENU;
@@ -505,7 +559,7 @@ void loop() {
       menuSelection = (menuSelection + 1) % 5; 
       drawMenu(); delay(200); 
     }
-    if (digitalRead(BUTTON_CHANGEMODE) == LOW || digitalRead(BUTTON_COLOR) == LOW) { 
+    if (digitalRead(BUTTON_COLOR) == LOW) { 
       beepNav();
       if (menuSelection == 1) { gameMode = (gameMode % 3) + 1; } 
       else if (menuSelection == 2) { allowedGuesses = (allowedGuesses == 3) ? 5 : allowedGuesses - 1; }
