@@ -137,6 +137,7 @@ int getLEDIndex(int row, int col) {
 }
 
 float readBatteryVoltage() {
+  analogSetAttenuation(ADC_11db);
   long sumMv = 0;
   for (int i = 0; i < BATT_SAMPLES; i++) { 
     sumMv += analogReadMilliVolts(BATT_PIN); 
