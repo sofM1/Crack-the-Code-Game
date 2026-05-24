@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Super Decoder / Crack The Code - 5-Button Edition w/ Reset Confirmation
+ * @brief Super Decoder / Crack The Code - Centered Pop-Up Edition
  */
 
 #include <Arduino.h>
@@ -52,7 +52,6 @@ uint8_t currentRow = 0;
 uint8_t currentCol = 0;
 uint8_t currentGuess[CODE_LENGTH];
 
-// NEW: Added STATE_CONFIRM_RESET to the state machine
 enum AppState { STATE_MENU, STATE_PLAYING, STATE_GAMEOVER, STATE_HELP, STATE_CONFIRM_RESET };
 AppState appState = STATE_MENU;
 uint8_t  menuSelection = 0;
@@ -138,10 +137,12 @@ int getLEDIndex(int row, int col) {
 }
 
 float readBatteryVoltage() {
-  analogSetAttenuation(ADC_11db);
-  long sum = 0;
-  for (int i = 0; i < BATT_SAMPLES; i++) { sum += analogRead(BATT_PIN); delay(2); }
-  float vPin = ((float)sum / BATT_SAMPLES / BATT_ADC_MAX) * 3.1f;
+  long sumMv = 0;
+  for (int i = 0; i < BATT_SAMPLES; i++) { 
+    sumMv += analogReadMilliVolts(BATT_PIN); 
+    delay(2); 
+  }
+  float vPin = (sumMv / BATT_SAMPLES) / 1000.0f; 
   float vBatt = vPin * ((BATT_R1 + BATT_R2) / BATT_R2);
   return (vBatt > 4.25f) ? 4.25f : (vBatt < 2.8f ? 2.8f : vBatt);
 }
@@ -253,23 +254,38 @@ void drawGameOver() {
   display.display();
 }
 
-// NEW: The Confirmation Pop-Up Screen
+// NEW: Centered Confirmation Pop-Up Screen
 void drawConfirmReset() {
   display.clearDisplay();
   display.setTextSize(1);
-  display.fillRect(0, 0, 128, 13, SH110X_WHITE);
+  
+  // Draw the centered bounding box
+  display.drawRect(14, 12, 100, 40, SH110X_WHITE);
+  display.fillRect(14, 12, 100, 11, SH110X_WHITE); // Inverted Header bar
+  
+  // Title Text (perfectly centered horizontally)
   display.setTextColor(SH110X_BLACK);
-  display.setCursor(34, 3); display.print(F("EXIT GAME?"));
-
+  display.setCursor(34, 14); 
+  display.print(F("EXIT GAME?"));
+  
   display.setTextColor(SH110X_WHITE);
-  display.setCursor(10, 30);
-  if (resetSelection == 0) { display.print(blinkState ? F("> ") : F("  ")); display.print(F("YES (Lose Progress)")); }
-  else { display.print(F("  YES (Lose Progress)")); }
-
-  display.setCursor(10, 46);
-  if (resetSelection == 1) { display.print(blinkState ? F("> ") : F("  ")); display.print(F("NO (Return to Game)")); }
-  else { display.print(F("  NO (Return to Game)")); }
-
+  
+  // YES Option
+  display.setCursor(43, 28);
+  if (resetSelection == 0) { 
+    display.print(blinkState ? F("> YES <") : F("  YES  ")); 
+  } else { 
+    display.print(F("  YES  ")); 
+  }
+  
+  // NO Option
+  display.setCursor(46, 40);
+  if (resetSelection == 1) { 
+    display.print(blinkState ? F("> NO <") : F("  NO  ")); 
+  } else { 
+    display.print(F("  NO  ")); 
+  }
+  
   display.display();
 }
 
@@ -329,7 +345,7 @@ void handleAnimations() {
     
     if (appState == STATE_MENU) drawMenu();
     if (appState == STATE_HELP) drawHelpScreen();
-    if (appState == STATE_CONFIRM_RESET) drawConfirmReset(); // Keep cursor blinking in confirm screen
+    if (appState == STATE_CONFIRM_RESET) drawConfirmReset(); 
     
     if (appState == STATE_PLAYING) {
       drawGameStatus(); 
@@ -475,18 +491,15 @@ void loop() {
   uint32_t now = millis();
   if (now - lastBattRead > 10000) { batteryVoltage = readBatteryVoltage(); batteryPct = batteryPercent(batteryVoltage); lastBattRead = now; }
 
-  // NEW: Updated Reset Button Logic
   if (digitalRead(BUTTON_RESETGAME) == LOW) { 
-    delay(50); // Small debounce
+    delay(50); 
     if (digitalRead(BUTTON_RESETGAME) == LOW) {
       if (appState == STATE_PLAYING) {
-        // If actively playing, bring up the confirmation screen
         beepNav();
         appState = STATE_CONFIRM_RESET;
-        resetSelection = 1; // Default safely to NO
+        resetSelection = 1; 
         drawConfirmReset();
       } else if (appState != STATE_CONFIRM_RESET) {
-        // If on Menu, Game Over, or Help screen, just reboot instantly
         playResetJingle(); 
         appState = STATE_MENU; FastLED.clear(); FastLED.show(); drawMenu(); 
       }
@@ -519,26 +532,23 @@ void loop() {
     }
   }
 
-  // NEW: Handling the Confirmation Screen Input
   if (appState == STATE_CONFIRM_RESET) {
     if (digitalRead(BUTTON_PREV) == LOW || digitalRead(BUTTON_NEXT) == LOW || digitalRead(BUTTON_COLOR) == LOW) {
       beepNav();
-      resetSelection = (resetSelection == 0) ? 1 : 0; // Toggle Yes/No
+      resetSelection = (resetSelection == 0) ? 1 : 0; 
       drawConfirmReset();
       delay(200);
     }
     if (digitalRead(BUTTON_SUBMIT) == LOW) {
       if (resetSelection == 0) {
-        // User confirmed YES -> Destroy game and go to Menu
         playResetJingle();
         appState = STATE_MENU;
         FastLED.clear(); FastLED.show();
         drawMenu();
       } else {
-        // User selected NO -> Resume game safely
         beepNav();
         appState = STATE_PLAYING;
-        lastTickTime = millis(); // Reset tick time so they don't lose a second instantly
+        lastTickTime = millis(); 
         drawGameStatus();
       }
       delay(200);
