@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Super Decoder / Crack The Code - Centered Pop-Up Edition
+ * @brief Super Decoder / RGBreak the Code - Centered Pop-Up Edition
  */
 
 #include <Arduino.h>
@@ -10,11 +10,14 @@
 #include <Adafruit_SH110X.h>
 #include <pgmspace.h> 
 
+void playMatrixRainConfetti(CRGB secretCodeColors[4]);
+
 // ============================================================
 // HARDWARE DEFINITIONS
 // ============================================================
 #define WS2812B_DATA_PIN   2   
 #define NUM_LEDS           40
+
 #define SH110X_SDA         8   
 #define SH110X_SCL         9   
 Adafruit_SH1106G display = Adafruit_SH1106G(128, 64, &Wire, -1);
@@ -150,8 +153,8 @@ float readBatteryVoltage() {
 
 uint8_t batteryPercent(float voltage) {
   if (voltage >= 4.20f) return 100;
-  if (voltage >= 3.70f) return 50 + (voltage - 3.70f) * 100;
-  if (voltage >= 3.20f) return (voltage - 3.20f) * 20;
+  if (voltage >= 3.70f) return 50 + ((voltage - 3.70f) * 100);
+  if (voltage >= 3.20f) return ((voltage - 3.20f) * 100);
   return 0;
 }
 
@@ -175,7 +178,7 @@ void drawMenu() {
   display.setTextSize(1); 
   display.fillRect(0, 0, 128, 13, SH110X_WHITE);
   display.setTextColor(SH110X_BLACK);
-  display.setCursor(14, 3); display.print(F("CRACK THE CODE"));
+  display.setCursor(14, 3); display.print(F("RGBreak the CODE"));
   
   display.setTextColor(SH110X_WHITE);
   auto drawCursor = [](int idx, int y, const char* text) {
@@ -204,8 +207,8 @@ void drawHelpScreen() {
   display.setCursor(30, 2); display.print(F("HOW TO PLAY"));
   display.setTextColor(SH110X_WHITE);
   display.setCursor(0, 16); display.print(F("Guess 4 secret colors"));
-  display.setCursor(0, 28); display.print(F("W = Exact match"));
-  display.setCursor(0, 40); display.print(F("O = Color match only"));
+  display.setCursor(0, 28); display.print(F("Wht = Exact match"));
+  display.setCursor(0, 40); display.print(F("Orn = Color match only"));
   display.setCursor(16, 54);
   if (blinkState) display.print(F("Press ANY BUTTON"));
   display.display();
@@ -216,7 +219,7 @@ void drawGameStatus() {
   display.setTextSize(1);
   display.fillRect(0, 0, 128, 12, SH110X_WHITE);
   display.setTextColor(SH110X_BLACK);
-  display.setCursor(2, 2); display.print(F("CRACK THE CODE"));
+  display.setCursor(2, 2); display.print(F("RGBreak the CODE"));
   drawBatteryIcon(batteryVoltage, 102, 1, true);
   display.setTextColor(SH110X_WHITE);
   
@@ -338,16 +341,14 @@ void doEndGameTransition() {
 
 void handleAnimations() {
   static uint32_t lastAnimUpdate = 0;
-  static uint8_t borderOffset = 0;
+  static uint8_t borderOffset = 0; 
   
   if (millis() - lastBlink >= BLINK_INTERVAL) {
     lastBlink = millis();
     blinkState = !blinkState;
-    
     if (appState == STATE_MENU) drawMenu();
     if (appState == STATE_HELP) drawHelpScreen();
-    if (appState == STATE_CONFIRM_RESET) drawConfirmReset(); 
-    
+    if (appState == STATE_CONFIRM_RESET) drawConfirmReset();
     if (appState == STATE_PLAYING) {
       drawGameStatus(); 
       int idx = getLEDIndex(currentRow, currentCol);
@@ -366,37 +367,22 @@ void handleAnimations() {
     }
   }
 
-  if (appState == STATE_GAMEOVER && millis() - lastAnimUpdate >= 60) {
-    lastAnimUpdate = millis();
-
-    CRGB borderColor = isGameWon ? CRGB(0, 40, 0) : CRGB(40, 0, 0);
-    CRGB chaserColor = isGameWon ? CRGB(0, 255, 0) : CRGB(255, 0, 0);
-
-    const int perim[22] = {
-      getLEDIndex(0,0), getLEDIndex(0,1), getLEDIndex(0,2), getLEDIndex(0,3), getLEDIndex(0,4), getLEDIndex(0,5), getLEDIndex(0,6), getLEDIndex(0,7),
-      getLEDIndex(1,7), getLEDIndex(2,7), getLEDIndex(3,7),
-      getLEDIndex(4,7), getLEDIndex(4,6), getLEDIndex(4,5), getLEDIndex(4,4), getLEDIndex(4,3), getLEDIndex(4,2), getLEDIndex(4,1), getLEDIndex(4,0),
-      getLEDIndex(3,0), getLEDIndex(2,0), getLEDIndex(1,0)
+  if (appState == STATE_GAMEOVER) {
+    
+    CRGB secretColors[4] = {
+      GAME_COLORS[secretCode[0]], 
+      GAME_COLORS[secretCode[1]], 
+      GAME_COLORS[secretCode[2]], 
+      GAME_COLORS[secretCode[3]]
     };
-
-    FastLED.clear();
-    for(int i = 0; i < 22; i++) leds[perim[i]] = borderColor;
-    for(int i = 0; i < 5; i++) leds[perim[(borderOffset + i) % 22]] = chaserColor;
-    for(int i = 0; i < 4; i++) leds[getLEDIndex(2, i + 2)] = GAME_COLORS[secretCode[i]];
     
-    FastLED.show();
-    
-    if (isGameWon) {
-      tone(BUZZER_PIN, 1000 + (borderOffset * 40), 20); 
-    } else {
-      tone(BUZZER_PIN, 300 + (borderOffset * 5), 20); 
+    playMatrixRainConfetti(secretColors);
+    if (millis() - lastAnimUpdate >= 60) {
+      lastAnimUpdate = millis();
+      gameOverTitleX -= 5;
+      if (gameOverTitleX < -115) gameOverTitleX = 128; 
+      drawGameOver(); 
     }
-
-    borderOffset = (borderOffset + 1) % 22; 
-
-    gameOverTitleX -= 5; 
-    if (gameOverTitleX < -115) gameOverTitleX = 128; 
-    drawGameOver(); 
   }
 }
 
@@ -482,10 +468,33 @@ void setup() {
   for(int i=0; i<5; i++) pinMode(p[i], INPUT_PULLUP);
   
   FastLED.addLeds<WS2812B, WS2812B_DATA_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
-  FastLED.setBrightness(20); 
+  FastLED.setBrightness(50); 
   
   batteryVoltage = readBatteryVoltage();
   drawMenu();
+}
+
+void playMatrixRainConfetti(CRGB secretCodeColors[4]) {
+  EVERY_N_MILLISECONDS(20) {
+    fadeToBlackBy(leds, NUM_LEDS, 25); 
+  }
+
+  EVERY_N_MILLISECONDS(150) {
+    for(int col = 0; col < 4; col++) {
+      int row = ((millis() / 150) + col) % 5; 
+      
+      int ledIndex = getLEDIndex(row, col); 
+      leds[ledIndex] = secretCodeColors[col]; 
+    }
+    
+    if (isGameWon) {
+      tone(BUZZER_PIN, random(2000, 4000), 10);
+    } else {
+      tone(BUZZER_PIN, random(150, 400), 15);
+    }
+  }
+
+  FastLED.show();
 }
 
 void loop() {
@@ -565,9 +574,14 @@ void loop() {
     }
   }
   else if (appState == STATE_MENU) {
-    if (digitalRead(BUTTON_NEXT) == LOW || digitalRead(BUTTON_PREV) == LOW) { 
+    if (digitalRead(BUTTON_NEXT) == LOW) { 
       beepNav();
       menuSelection = (menuSelection + 1) % 5; 
+      drawMenu(); delay(200); 
+    }
+    if (digitalRead(BUTTON_PREV) == LOW) { 
+      beepNav();
+      menuSelection = (menuSelection == 0) ? 4 : menuSelection - 1; 
       drawMenu(); delay(200); 
     }
     if (digitalRead(BUTTON_COLOR) == LOW) { 
