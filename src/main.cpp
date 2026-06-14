@@ -101,22 +101,6 @@ void playRowSubmit() {
   tone(BUZZER_PIN, 1200, 80);
 }
 
-void playWinJingle() {
-  tone(BUZZER_PIN, 1319, 100); delay(120); 
-  tone(BUZZER_PIN, 1568, 100); delay(120); 
-  tone(BUZZER_PIN, 2637, 200); delay(220); 
-  tone(BUZZER_PIN, 2093, 100); delay(120); 
-  tone(BUZZER_PIN, 2349, 100); delay(120); 
-  tone(BUZZER_PIN, 3136, 400);             
-}
-
-void playLoseJingle() {
-  tone(BUZZER_PIN, 311, 300); delay(350); 
-  tone(BUZZER_PIN, 294, 300); delay(350); 
-  tone(BUZZER_PIN, 277, 300); delay(350); 
-  tone(BUZZER_PIN, 262, 800);             
-}
-
 void playBootJingle() {
   tone(BUZZER_PIN, 440, 100); delay(120); 
   tone(BUZZER_PIN, 554, 100); delay(120); 
@@ -324,18 +308,38 @@ void renderAll() {
 }
 
 void doEndGameTransition() {
-  CRGB flashColor = isGameWon ? CRGB(0, 200, 0) : CRGB(200, 0, 0);
-  
-  if (isGameWon) playWinJingle();
-  else playLoseJingle();
-
-  for(int flash = 0; flash < 4; flash++) {
-    for(int i = 0; i < NUM_LEDS; i++) leds[i] = flashColor;
-    FastLED.show();
-    delay(150);
-    FastLED.clear();
-    FastLED.show();
-    delay(150);
+  if (isGameWon) {
+    int notes[] = {1319, 1568, 2637, 2093, 2349, 3136};
+    int durations[] = {100, 100, 200, 100, 100, 400};
+    int delays[] = {120, 120, 220, 120, 120, 400};
+    
+    for (int i = 0; i < 6; i++) {
+      for(int l = 0; l < NUM_LEDS; l++) leds[l] = CRGB(0, 200, 0); 
+      FastLED.show();
+      tone(BUZZER_PIN, notes[i], durations[i]);
+      delay(durations[i]); 
+      FastLED.clear();
+      FastLED.show();
+      if (delays[i] > durations[i]) {
+        delay(delays[i] - durations[i]);
+      }
+    }
+  } else {
+    int notes[] = {311, 294, 277, 262};
+    int durations[] = {300, 300, 300, 800};
+    int delays[] = {350, 350, 350, 800};
+    
+    for (int i = 0; i < 4; i++) {
+      for(int l = 0; l < NUM_LEDS; l++) leds[l] = CRGB(200, 0, 0); 
+      FastLED.show();
+      tone(BUZZER_PIN, notes[i], durations[i]);
+      delay(durations[i]);
+      FastLED.clear();
+      FastLED.show();
+      if (delays[i] > durations[i]) {
+        delay(delays[i] - durations[i]);
+      }
+    }
   }
 }
 
@@ -450,7 +454,7 @@ void initGame() {
   }
   for (int c=0; c<4; c++) currentGuess[c]=255;
 
-  // --- PHASE 1 ALGORITHMIC LOGIC VERIFICATION TEST ---
+  // --- PHASE 1 ALGORITHMIC LOGIC VERIFICATION TEST---
   // Force a deterministic secret code: 0=Red, 1=Green, 2=Blue, 3=Yellow
   // secretCode[0] = 2; 
   // secretCode[1] = 2; 
