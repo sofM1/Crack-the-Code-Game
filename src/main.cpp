@@ -207,8 +207,8 @@ void drawHelpScreen() {
   display.setCursor(30, 2); display.print(F("HOW TO PLAY"));
   display.setTextColor(SH110X_WHITE);
   display.setCursor(0, 16); display.print(F("Guess 4 secret colors"));
-  display.setCursor(0, 28); display.print(F("Wht = Exact match"));
-  display.setCursor(0, 40); display.print(F("Orn = Color match only"));
+  display.setCursor(0, 28); display.print(F("W = Exact match"));
+  display.setCursor(0, 40); display.print(F("O = Color match only"));
   display.setCursor(16, 54);
   if (blinkState) display.print(F("Press ANY BUTTON"));
   display.display();
@@ -305,7 +305,7 @@ void renderAll() {
       else if (r == currentRow) {
         if (currentGuess[c] < NUM_GAME_COLORS) {
           CRGB temp = GAME_COLORS[currentGuess[c]];
-          temp.nscale8(30); 
+          temp.nscale8(100); 
           leds[getLEDIndex(r, c)] = temp;
         } else { 
           leds[getLEDIndex(r, c)] = CRGB(35, 35, 35); 
@@ -339,6 +339,26 @@ void doEndGameTransition() {
   }
 }
 
+void forceCursorDraw() {
+  if (appState == STATE_PLAYING) {
+    int idx = getLEDIndex(currentRow, currentCol);
+    if (blinkState) {
+      // Draw bright ON state
+      leds[idx] = (currentGuess[currentCol] < NUM_GAME_COLORS) ? GAME_COLORS[currentGuess[currentCol]] : CRGB(150, 150, 150);
+    } else {
+      // Draw dim OFF state
+      if (currentGuess[currentCol] < NUM_GAME_COLORS) {
+        CRGB tempColor = GAME_COLORS[currentGuess[currentCol]];
+        tempColor.nscale8(100);
+        leds[idx] = tempColor;
+      } else {
+        leds[idx] = CRGB(35, 35, 35);
+      }
+    }
+    FastLED.show();
+  }
+}
+
 void handleAnimations() {
   static uint32_t lastAnimUpdate = 0;
   static uint8_t borderOffset = 0; 
@@ -351,19 +371,7 @@ void handleAnimations() {
     if (appState == STATE_CONFIRM_RESET) drawConfirmReset();
     if (appState == STATE_PLAYING) {
       drawGameStatus(); 
-      int idx = getLEDIndex(currentRow, currentCol);
-      if (blinkState) {
-        leds[idx] = (currentGuess[currentCol] < NUM_GAME_COLORS) ? GAME_COLORS[currentGuess[currentCol]] : CRGB(150, 150, 150);
-      } else {
-        if (currentGuess[currentCol] < NUM_GAME_COLORS) {
-          CRGB tempColor = GAME_COLORS[currentGuess[currentCol]];
-          tempColor.nscale8(30);
-          leds[idx] = tempColor;
-        } else {
-          leds[idx] = CRGB(35, 35, 35);
-        }
-      }
-      FastLED.show();
+      forceCursorDraw(); // <-- Now calling the helper function!
     }
   }
 
@@ -468,7 +476,7 @@ void setup() {
   for(int i=0; i<5; i++) pinMode(p[i], INPUT_PULLUP);
   
   FastLED.addLeds<WS2812B, WS2812B_DATA_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
-  FastLED.setBrightness(50); 
+  FastLED.setBrightness(120); 
   
   batteryVoltage = readBatteryVoltage();
   drawMenu();
@@ -546,9 +554,14 @@ void loop() {
     if (digitalRead(BUTTON_PREV) == LOW || digitalRead(BUTTON_NEXT) == LOW || digitalRead(BUTTON_COLOR) == LOW) {
       beepNav();
       resetSelection = (resetSelection == 0) ? 1 : 0; 
+      
+      blinkState = true;     
+      lastBlink = millis();  
+      
       drawConfirmReset();
       delay(200);
     }
+    
     if (digitalRead(BUTTON_SUBMIT) == LOW) {
       if (resetSelection == 0) {
         playResetJingle();
@@ -574,23 +587,42 @@ void loop() {
     }
   }
   else if (appState == STATE_MENU) {
+    
     if (digitalRead(BUTTON_NEXT) == LOW) { 
       beepNav();
       menuSelection = (menuSelection + 1) % 5; 
-      drawMenu(); delay(200); 
+      
+      blinkState = true;     
+      lastBlink = millis();  
+      
+      drawMenu(); 
+      delay(200); 
     }
+    
     if (digitalRead(BUTTON_PREV) == LOW) { 
       beepNav();
       menuSelection = (menuSelection == 0) ? 4 : menuSelection - 1; 
-      drawMenu(); delay(200); 
+      
+      blinkState = true;     
+      lastBlink = millis();  
+      
+      drawMenu(); 
+      delay(200); 
     }
+    
     if (digitalRead(BUTTON_COLOR) == LOW) { 
       beepNav();
       if (menuSelection == 1) { gameMode = (gameMode % 3) + 1; } 
       else if (menuSelection == 2) { allowedGuesses = (allowedGuesses == 3) ? 5 : allowedGuesses - 1; }
       else if (menuSelection == 3) { timerSelection = (timerSelection + 1) % 3; }
-      drawMenu(); delay(200); 
+      
+      blinkState = true;     
+      lastBlink = millis();  
+      
+      drawMenu(); 
+      delay(200); 
     }
+    
     if (digitalRead(BUTTON_SUBMIT) == LOW) { 
       beepNav();
       if (menuSelection == 0) initGame(); 
@@ -601,14 +633,52 @@ void loop() {
       delay(200); 
     }
   } 
+  
   else if (appState == STATE_PLAYING) {
-    if (digitalRead(BUTTON_PREV) == LOW) { beepNav(); currentCol = (currentCol == 0) ? 3 : currentCol - 1; renderAll(); drawGameStatus(); delay(200); }
-    if (digitalRead(BUTTON_NEXT) == LOW) { beepNav(); currentCol = (currentCol + 1) % 4; renderAll(); drawGameStatus(); delay(200); }
+    
+    if (digitalRead(BUTTON_PREV) == LOW) { 
+      beepNav(); 
+      currentCol = (currentCol == 0) ? 3 : currentCol - 1; 
+      renderAll(); 
+      drawGameStatus(); 
+      
+      // --- PATCH START ---
+      blinkState = true;     
+      lastBlink = millis();  
+      forceCursorDraw();
+      // --- PATCH END ---
+      
+      delay(200); 
+    }
+    
+    if (digitalRead(BUTTON_NEXT) == LOW) { 
+      beepNav(); 
+      currentCol = (currentCol + 1) % 4; 
+      renderAll(); 
+      drawGameStatus(); 
+      
+      // --- PATCH START ---
+      blinkState = true;     
+      lastBlink = millis();  
+      forceCursorDraw(); 
+      // --- PATCH END ---
+      
+      delay(200); 
+    }
     
     if (digitalRead(BUTTON_COLOR) == LOW) { 
       beepColor(); 
       currentGuess[currentCol] = (currentGuess[currentCol] >= NUM_GAME_COLORS - 1) ? 0 : currentGuess[currentCol] + 1; 
-      renderAll(); drawGameStatus(); delay(200); 
+      renderAll(); 
+      drawGameStatus(); 
+      
+      // --- PATCH START ---
+      blinkState = true;     
+      lastBlink = millis();  
+      forceCursorDraw();  
+      // --- PATCH END ---
+      
+      delay(200); 
     }
     
     if (digitalRead(BUTTON_SUBMIT) == LOW) {
