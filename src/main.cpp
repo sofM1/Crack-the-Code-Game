@@ -449,7 +449,16 @@ void initGame() {
     for(int c=0; c<4; c++) { guessHistory[r][c]=255; feedbackPegs[r][c]=0; }
   }
   for (int c=0; c<4; c++) currentGuess[c]=255;
-  generateCode(); 
+
+  // --- PHASE 1 ALGORITHMIC LOGIC VERIFICATION TEST ---
+  // Force a deterministic secret code: 0=Red, 1=Green, 2=Blue, 3=Yellow
+  // secretCode[0] = 2; 
+  // secretCode[1] = 2; 
+  // secretCode[2] = 1; 
+  // secretCode[3] = 0; 
+  generateCode();
+  // ---------------------------------
+
   appState = STATE_PLAYING; 
   renderAll(); 
   drawGameStatus();
