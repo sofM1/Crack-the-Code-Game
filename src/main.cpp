@@ -40,7 +40,7 @@ Adafruit_SH1106G display = Adafruit_SH1106G(128, 64, &Wire, -1);
 // GAME SETTINGS & STATE
 // ============================================================
 #define CODE_LENGTH        4
-#define MAX_GUESSES        5
+#define MAX_GUESSES        10
 #define NUM_GAME_COLORS    6   
 #define DEBOUNCE_MS        40
 #define BLINK_INTERVAL     400 
@@ -64,11 +64,9 @@ uint8_t  allowedGuesses = 5;
 uint8_t  timerSelection = 0; 
 bool     isGameWon = false; 
 
-// Time Attack Tracking
 int      timeRemaining = 0;
 uint32_t lastTickTime = 0;
 
-// Animation Tracking for OLED Marquee
 int gameOverTitleX = 128;
 int gameOverTitleDir = -1;
 
@@ -242,23 +240,19 @@ void drawGameOver() {
   display.display();
 }
 
-// NEW: Centered Confirmation Pop-Up Screen
 void drawConfirmReset() {
   display.clearDisplay();
   display.setTextSize(1);
   
-  // Draw the centered bounding box
   display.drawRect(14, 12, 100, 40, SH110X_WHITE);
-  display.fillRect(14, 12, 100, 11, SH110X_WHITE); // Inverted Header bar
+  display.fillRect(14, 12, 100, 11, SH110X_WHITE); 
   
-  // Title Text (perfectly centered horizontally)
   display.setTextColor(SH110X_BLACK);
   display.setCursor(34, 14); 
   display.print(F("EXIT GAME?"));
   
   display.setTextColor(SH110X_WHITE);
   
-  // YES Option
   display.setCursor(43, 28);
   if (resetSelection == 0) { 
     display.print(blinkState ? F("> YES <") : F("  YES  ")); 
@@ -266,7 +260,6 @@ void drawConfirmReset() {
     display.print(F("  YES  ")); 
   }
   
-  // NO Option
   display.setCursor(46, 40);
   if (resetSelection == 1) { 
     display.print(blinkState ? F("> NO <") : F("  NO  ")); 
@@ -283,24 +276,29 @@ void drawConfirmReset() {
 
 void renderAll() {
   for (int i = 0; i < NUM_LEDS; i++) leds[i] = CRGB::Black;
-  for (uint8_t r = 0; r < MAX_GUESSES; r++) {
+  
+  int startRow = (currentRow >= 5) ? 5 : 0;
+  
+  for (uint8_t r = startRow; r < MAX_GUESSES && r < startRow + 5; r++) {
+    int physicalR = r - startRow; 
+    
     for (uint8_t c = 0; c < CODE_LENGTH; c++) {
-      if (r < currentRow) { leds[getLEDIndex(r, c)] = GAME_COLORS[guessHistory[r][c]]; } 
+      if (r < currentRow) { leds[getLEDIndex(physicalR, c)] = GAME_COLORS[guessHistory[r][c]]; } 
       else if (r == currentRow) {
         if (currentGuess[c] < NUM_GAME_COLORS) {
           CRGB temp = GAME_COLORS[currentGuess[c]];
           temp.nscale8(100); 
-          leds[getLEDIndex(r, c)] = temp;
+          leds[getLEDIndex(physicalR, c)] = temp;
         } else { 
-          leds[getLEDIndex(r, c)] = CRGB(35, 35, 35); 
+          leds[getLEDIndex(physicalR, c)] = CRGB(35, 35, 35); 
         }
       }
     }
     if (r < currentRow) {
       for (uint8_t i = 0; i < CODE_LENGTH; i++) {
-        if (feedbackPegs[r][i] == 2) leds[getLEDIndex(r, i + 4)] = CRGB::White; 
-        else if (feedbackPegs[r][i] == 1) leds[getLEDIndex(r, i + 4)] = CRGB(100, 50, 0); 
-        else leds[getLEDIndex(r, i + 4)] = CRGB(10, 10, 10); 
+        if (feedbackPegs[r][i] == 2) leds[getLEDIndex(physicalR, i + 4)] = CRGB::White; 
+        else if (feedbackPegs[r][i] == 1) leds[getLEDIndex(physicalR, i + 4)] = CRGB(100, 50, 0); 
+        else leds[getLEDIndex(physicalR, i + 4)] = CRGB(10, 10, 10); 
       }
     }
   }
@@ -345,12 +343,14 @@ void doEndGameTransition() {
 
 void forceCursorDraw() {
   if (appState == STATE_PLAYING) {
-    int idx = getLEDIndex(currentRow, currentCol);
+    
+    int startRow = (currentRow >= 5) ? 5 : 0;
+    int physicalR = currentRow - startRow;
+    
+    int idx = getLEDIndex(physicalR, currentCol);
     if (blinkState) {
-      // Draw bright ON state
       leds[idx] = (currentGuess[currentCol] < NUM_GAME_COLORS) ? GAME_COLORS[currentGuess[currentCol]] : CRGB(150, 150, 150);
     } else {
-      // Draw dim OFF state
       if (currentGuess[currentCol] < NUM_GAME_COLORS) {
         CRGB tempColor = GAME_COLORS[currentGuess[currentCol]];
         tempColor.nscale8(100);
@@ -375,7 +375,7 @@ void handleAnimations() {
     if (appState == STATE_CONFIRM_RESET) drawConfirmReset();
     if (appState == STATE_PLAYING) {
       drawGameStatus(); 
-      forceCursorDraw(); // <-- Now calling the helper function!
+      forceCursorDraw(); 
     }
   }
 
@@ -448,7 +448,7 @@ void initGame() {
   else if (timerSelection == 2) timeRemaining = 90;
   lastTickTime = millis();
 
-  for (int r=0; r<5; r++) { 
+  for (int r=0; r<MAX_GUESSES; r++) { 
     feedbackExact[r]=feedbackColor[r]=0; 
     for(int c=0; c<4; c++) { guessHistory[r][c]=255; feedbackPegs[r][c]=0; }
   }
@@ -626,7 +626,13 @@ void loop() {
     if (digitalRead(BUTTON_COLOR) == LOW) { 
       beepNav();
       if (menuSelection == 1) { gameMode = (gameMode % 3) + 1; } 
-      else if (menuSelection == 2) { allowedGuesses = (allowedGuesses == 3) ? 5 : allowedGuesses - 1; }
+      else if (menuSelection == 2) { 
+        if (allowedGuesses == 3) allowedGuesses = 4;
+        else if (allowedGuesses == 4) allowedGuesses = 5;
+        else if (allowedGuesses == 5) allowedGuesses = 10;
+        else allowedGuesses = 3;
+      }
+      
       else if (menuSelection == 3) { timerSelection = (timerSelection + 1) % 3; }
       
       blinkState = true;     
@@ -640,7 +646,14 @@ void loop() {
       beepNav();
       if (menuSelection == 0) initGame(); 
       else if (menuSelection == 1) { gameMode = (gameMode % 3) + 1; drawMenu(); }
-      else if (menuSelection == 2) { allowedGuesses = (allowedGuesses == 3) ? 5 : allowedGuesses - 1; drawMenu(); }
+      else if (menuSelection == 2) { 
+        if (allowedGuesses == 3) allowedGuesses = 4;
+        else if (allowedGuesses == 4) allowedGuesses = 5;
+        else if (allowedGuesses == 5) allowedGuesses = 10;
+        else allowedGuesses = 3;
+        drawMenu(); 
+      }
+
       else if (menuSelection == 3) { timerSelection = (timerSelection + 1) % 3; drawMenu(); }
       else if (menuSelection == 4) { appState = STATE_HELP; drawHelpScreen(); }
       delay(200); 
@@ -655,11 +668,9 @@ void loop() {
       renderAll(); 
       drawGameStatus(); 
       
-      // --- PATCH START ---
       blinkState = true;     
       lastBlink = millis();  
       forceCursorDraw();
-      // --- PATCH END ---
       
       delay(200); 
     }
@@ -670,11 +681,9 @@ void loop() {
       renderAll(); 
       drawGameStatus(); 
       
-      // --- PATCH START ---
       blinkState = true;     
       lastBlink = millis();  
       forceCursorDraw(); 
-      // --- PATCH END ---
       
       delay(200); 
     }
@@ -685,11 +694,9 @@ void loop() {
       renderAll(); 
       drawGameStatus(); 
       
-      // --- PATCH START ---
       blinkState = true;     
       lastBlink = millis();  
       forceCursorDraw();  
-      // --- PATCH END ---
       
       delay(200); 
     }
