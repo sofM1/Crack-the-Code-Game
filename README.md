@@ -66,7 +66,7 @@ RGBreak the Code is a standalone physical code-breaking game that uses tactile c
 
 For operating instructions, gameplay, troubleshooting, and hardware specifications:
 
-[View the RGBreak the Code User Manual](docs/RGBreak-the-Code-Manual.pdf)
+[View the RGBreak the Code User Manual](docs/RGBreak_the_Code_Manual.pdf)
 
 ## Status
 
