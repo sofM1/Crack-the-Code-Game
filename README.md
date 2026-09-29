@@ -5,8 +5,8 @@ A handheld embedded logic puzzle built around the ESP32-S3.
 RGBreak the Code is a standalone physical code-breaking game that uses tactile controls, an OLED display, and an RGB LED matrix to provide immediate visual and auditory feedback.
 
 <p align="center">
-  <img src="images/Prototype_Front.jpg" width="48%" height="360" style="object-fit: cover;">
-  <img src="images/Prototype_Side.jpg" width="48%" height="360" style="object-fit: cover;">
+  <img src="images/Prototype_Front.jpg" width="48%" height="360">
+  <img src="images/Prototype_Side.jpg" width="48%" height="360">
 </p>
 
 [▶ Watch the RGBreak the Code Demo](https://drive.google.com/file/d/17QTlvfeYh7tGejYH-UeQBKx7vbnn-pax/view?usp=sharing)
